@@ -46,8 +46,14 @@ jobs:
       - name: Download IPA
         env:
           IPA_URL: ${{ inputs.ipa_url }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          curl --fail --location --retry 3 --output "$GITHUB_WORKSPACE/spotify.ipa" "$IPA_URL"
+          if [[ "$IPA_URL" == "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/assets/"* ]]; then
+            # Allow private draft-release inputs without publishing the source IPA.
+            gh api "$IPA_URL" -H 'Accept: application/octet-stream' > "$GITHUB_WORKSPACE/spotify.ipa"
+          else
+            curl --fail --location --retry 3 --output "$GITHUB_WORKSPACE/spotify.ipa" "$IPA_URL"
+          fi
           file_type=$(file --mime-type -b ${{ github.workspace }}/spotify.ipa)
           if [[ "$file_type" != "application/x-ios-app" && "$file_type" != "application/zip" ]]; then
             echo "::error::Not a valid IPA: $file_type"; exit 1
