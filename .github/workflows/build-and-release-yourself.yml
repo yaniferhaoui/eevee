@@ -62,8 +62,13 @@ jobs:
       - name: Download .deb
         env:
           TWEAK_URL: ${{ inputs.tweak_url }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          curl --fail --location --retry 3 --output "$GITHUB_WORKSPACE/eevee.deb" "$TWEAK_URL"
+          if [[ "$TWEAK_URL" == "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/assets/"* ]]; then
+            gh api "$TWEAK_URL" -H 'Accept: application/octet-stream' > "$GITHUB_WORKSPACE/eevee.deb"
+          else
+            curl --fail --location --retry 3 --output "$GITHUB_WORKSPACE/eevee.deb" "$TWEAK_URL"
+          fi
           file_type=$(file --mime-type -b ${{ github.workspace }}/eevee.deb)
           if [[ "$file_type" != "application/vnd.debian.binary-package" ]]; then
             echo "::error::Not a valid .deb: $file_type"; exit 1
@@ -106,6 +111,8 @@ jobs:
 
           SPOT_VERSION=$(unzip -p ${{ github.workspace }}/spotify.ipa 'Payload/Spotify.app/Info.plist' \
               | plutil -extract CFBundleShortVersionString raw - 2>/dev/null || echo "unknown")
+          MIN_OS=$(unzip -p "$GITHUB_WORKSPACE/spotify.ipa" 'Payload/Spotify.app/Info.plist' \
+              | plutil -extract MinimumOSVersion raw -)
           OUT="Outputs/IPAS/EeveeSpotify-${SPOT_VERSION}.ipa"
 
           INJECT=("$DYLIB_SRC")
@@ -113,7 +120,7 @@ jobs:
           [ -n "$BUNDLE_SRC" ]    && INJECT+=("$BUNDLE_SRC")
 
           cyan -i ${{ github.workspace }}/spotify.ipa -o "$OUT" \
-               -f "${INJECT[@]}" -c 9 -m 15.0 -du
+               -f "${INJECT[@]}" -c 9 -m "$MIN_OS" -du
           echo "OUT_IPA=$OUT" >> $GITHUB_ENV
 
       - name: Fetch OpeninSafariSpotify extension (.appex)
